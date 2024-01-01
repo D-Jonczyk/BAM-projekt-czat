@@ -76,6 +76,12 @@ Zamień ip z pliku /lib/config.dart na swoje, jest to adres API Flaska:
     Automatyczne pobieranie i wyświetlanie wiadomości.
     Przewijanie widoku wiadomości.
 
+![login_screen.png](https://github.com/D-Jonczyk/BAM-projekt-czat/blob/main/images/login_screen.png "Okno logowania")
+
+
+![chat.png](https://github.com/D-Jonczyk/BAM-projekt-czat/blob/main/images/chat.png "Panel czatu")
+
+
 ### Widgety
 
     ChatScreen: Główny ekran aplikacji, na którym użytkownicy mogą wysyłać i przeglądać wiadomości.
