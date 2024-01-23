@@ -1,5 +1,8 @@
 import 'package:bam_projekt/screens/chat_screen.dart';
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:bam_projekt/config.dart';
 
 void main() {
   runApp(const MyApp());
@@ -58,72 +61,153 @@ class _AuthenticationScreenState extends State<AuthenticationScreen> {
   }
 }
 
-class Login extends StatelessWidget {
+class Login extends StatefulWidget {
   const Login({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: <Widget>[
-        const SizedBox(height: 20.0),
-        TextFormField(
-          decoration: const InputDecoration(
-            hintText: 'Email',
-          ),
-        ),
-        const SizedBox(height: 20.0),
-        TextFormField(
-          decoration: const InputDecoration(
-            hintText: 'Hasło',
-          ),
-          obscureText: true,
-        ),
-        const SizedBox(height: 20.0),
-        ElevatedButton(
-          child: const Text('Zaloguj się'),
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const ChatScreen()),
-            );
-          },
-        ),
-      ],
-    );
-  }
+  _LoginState createState() => _LoginState();
 }
 
-class Register extends StatelessWidget {
-  const Register({super.key});
+class _LoginState extends State<Login> {
+  final _formKey = GlobalKey<FormState>();
+  String username = '';
+  String password = '';
+
+  Future<void> _loginUser() async {
+    if (_formKey.currentState!.validate()) {
+      // Send login request
+      final response = await http.post(
+        Uri.parse('${Config.serverAddress}/auth/login'),
+        headers: <String, String>{
+          'Content-Type': 'application/json; charset=UTF-8',
+        },
+        body: jsonEncode({
+          'username': username,
+          'password': password,
+        }),
+      );
+
+      if (response.statusCode == 200) {  // For login
+        final responseData = jsonDecode(response.body);
+        final int userId = responseData['user_id'];
+        final String username = responseData['username']; // Assuming the username is returned by your backend
+
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => ChatScreen(userId: userId, username: username)),
+        );
+      } else {
+        // Handle error
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: <Widget>[
-        const SizedBox(height: 20.0),
-        TextFormField(
-          decoration: const InputDecoration(
-            hintText: 'Email',
+    return Form(
+      key: _formKey,
+      child: Column(
+        children: <Widget>[
+          const SizedBox(height: 20.0),
+          TextFormField(
+            decoration: const InputDecoration(hintText: 'Username'),
+            validator: (val) => val!.isEmpty ? 'Enter a username' : null,
+            onChanged: (val) {
+              setState(() => username = val);
+            },
           ),
-        ),
-        const SizedBox(height: 20.0),
-        TextFormField(
-          decoration: const InputDecoration(
-            hintText: 'Hasło',
+          const SizedBox(height: 20.0),
+          TextFormField(
+            decoration: const InputDecoration(hintText: 'Password'),
+            obscureText: true,
+            validator: (val) => val!.length < 6 ? 'Enter a password 6+ chars long' : null,
+            onChanged: (val) {
+              setState(() => password = val);
+            },
           ),
-          obscureText: true,
-        ),
-        const SizedBox(height: 20.0),
-        ElevatedButton(
-          child: const Text('Zarejestruj się'),
-          onPressed: () {
-            Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const ChatScreen()),
-            );
-          },
-        ),
-      ],
+          const SizedBox(height: 20.0),
+          ElevatedButton(
+            child: const Text('Login'),
+            onPressed: _loginUser,
+          ),
+        ],
+      ),
     );
   }
 }
+
+
+class Register extends StatefulWidget {
+  const Register({super.key});
+
+  @override
+  _RegisterState createState() => _RegisterState();
+}
+
+class _RegisterState extends State<Register> {
+  final _formKey = GlobalKey<FormState>();
+  String username = '';
+  String password = '';
+
+  Future<void> _registerUser() async {
+    if (_formKey.currentState!.validate()) {
+      // Send registration request
+      final response = await http.post(
+        Uri.parse('${Config.serverAddress}/auth/register'),
+        headers: <String, String>{
+          'Content-Type': 'application/json; charset=UTF-8',
+        },
+        body: jsonEncode({
+          'username': username,
+          'password': password,
+        }),
+      );
+
+      if (response.statusCode == 201) {  // For registration
+        final responseData = jsonDecode(response.body);
+        final int userId = responseData['user_id'];
+
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => ChatScreen(userId: userId, username: username)),
+        );
+      } else {
+        // Handle error
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Form(
+      key: _formKey,
+      child: Column(
+        children: <Widget>[
+          const SizedBox(height: 20.0),
+          TextFormField(
+            decoration: const InputDecoration(hintText: 'Username'),
+            validator: (val) => val!.isEmpty ? 'Enter a username' : null,
+            onChanged: (val) {
+              setState(() => username = val);
+            },
+          ),
+          const SizedBox(height: 20.0),
+          TextFormField(
+            decoration: const InputDecoration(hintText: 'Password'),
+            obscureText: true,
+            validator: (val) => val!.length < 6 ? 'Enter a password 6+ chars long' : null,
+            onChanged: (val) {
+              setState(() => password = val);
+            },
+          ),
+          const SizedBox(height: 20.0),
+          ElevatedButton(
+            child: const Text('Register'),
+            onPressed: _registerUser,
+          ),
+        ],
+      ),
+    );
+  }
+}
+

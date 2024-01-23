@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'dart:async';
 import 'package:bam_projekt/config.dart';
 import 'package:intl/intl.dart';
+import 'package:bam_projekt/main.dart';
 
 
 class ChatScreen extends StatefulWidget {
-  const ChatScreen({super.key});
+  final int userId;
+  final String username;
+
+  const ChatScreen({super.key, required this.userId, required this.username});
 
   @override
   _ChatScreenState createState() => _ChatScreenState();
@@ -15,30 +20,84 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _messageController = TextEditingController();
   List<Map<String, dynamic>> messages = [];
+  Timer? _timer;
+  List<Map<String, dynamic>> users = []; // List of users
+  int? selectedReceiverId; // Selected receiver's ID
 
   @override
   void initState() {
     super.initState();
-    _getMessages();  // Fetch messages when the screen is initialized
+    _getMessages();
+    _getUsers(); // Fetch users when the screen is initialized
+
+    _timer = Timer.periodic(Duration(seconds: 5), (Timer t) => _getMessages());
   }
 
   @override
   void dispose() {
     _messageController.dispose();
+    _timer?.cancel(); // Cancel the timer
     super.dispose();
   }
 
-  void _sendMessage() async {
-    String messageText = _messageController.text;
-    var response = await http.post(
-      Uri.parse('${Config.serverAddress}/send-message'),
+  void _getUsers() async {
+    // Fetch the list of users from the backend
+    var response = await http.get(
+      Uri.parse('${Config.serverAddress}/auth/users'),
       headers: <String, String>{
         'Content-Type': 'application/json; charset=UTF-8',
       },
-      body: jsonEncode(<String, String>{
+    );
+
+    if (response.statusCode == 200) {
+      var usersData = jsonDecode(response.body) as List;
+      setState(() {
+        users = List<Map<String, dynamic>>.from(usersData);
+        if (users.isNotEmpty && selectedReceiverId == null) {
+          selectedReceiverId = users.first['id']; // Initialize with the first user's ID
+        }
+      });
+    }
+  }
+
+  void _sendMaliciousMessage() async {
+    // Extremely long message
+    String longMessage = 'A' * 10000; // 10,000 'A's
+
+    var response = await http.post(
+      Uri.parse('${Config.serverAddress}/messages/send'),
+      headers: <String, String>{
+        'Content-Type': 'application/json; charset=UTF-8',
+      },
+      body: jsonEncode({
+        'content': longMessage,
+        'sender_id': widget.userId.toString(),  // Use user ID from widget
+        'receiver_id': selectedReceiverId.toString(),  // Use selected receiver ID
+      }),
+    );
+
+    if (response.statusCode == 200) {
+      // Show success in the UI or just print to console for now
+      print('Malicious message sent');
+    } else {
+      // Error handling
+      print('Failed to send malicious message');
+    }
+  }
+
+  void _sendMessage() async {
+    if (selectedReceiverId == null) return;  // Ensure receiver is selected
+
+    String messageText = _messageController.text;
+    var response = await http.post(
+      Uri.parse('${Config.serverAddress}/messages/send'),
+      headers: <String, String>{
+        'Content-Type': 'application/json; charset=UTF-8',
+      },
+      body: jsonEncode({
         'content': messageText,
-        'sender_id': '1',  // Replace with actual sender ID
-        'receiver_id': '2',  // Replace with actual receiver ID
+        'sender_id': widget.userId.toString(),  // Use user ID from widget
+        'receiver_id': selectedReceiverId.toString(),  // Use selected receiver ID
       }),
     );
 
@@ -50,7 +109,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   void _getMessages() async {
     var response = await http.get(
-      Uri.parse('${Config.serverAddress}/get-messages?user_id=1'),
+      Uri.parse('${Config.serverAddress}/messages/get?user_id=${widget.userId}'),
       headers: <String, String>{
         'Content-Type': 'application/json; charset=UTF-8',
       },
@@ -68,17 +127,44 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Czat'),
+        title: Text('Czat - ${widget.username}'), // Display username here
+        actions: <Widget>[
+          IconButton(
+            icon: Icon(Icons.exit_to_app),
+            onPressed: () {
+              // Navigate back to AuthenticationScreen
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => const AuthenticationScreen()),
+              );
+            },
+          ),
+        ],
       ),
       body: Column(
         children: <Widget>[
+          if (users.isNotEmpty && selectedReceiverId != null)
+            DropdownButton<int>(
+              value: selectedReceiverId,
+              onChanged: (int? newValue) {
+                setState(() {
+                  selectedReceiverId = newValue;
+                });
+              },
+              items: users.map<DropdownMenuItem<int>>((user) {
+                return DropdownMenuItem<int>(
+                  value: user['id'],
+                  child: Text(user['username']),
+                );
+              }).toList(),
+            ),
           Expanded(
             child: ListView.builder(
               itemCount: messages.length,
               itemBuilder: (context, index) {
                 final message = messages[index];
                 // Ensure that sender_id is an integer.
-                final bool isSentByMe = message['sender_id'] == 1; // Assuming current user's ID is 1
+                final bool isSentByMe = message['sender_id'] == widget.userId; // Use user ID from widget
 
                 // Parse the timestamp using the `intl` package
                 final DateTime timestamp = DateFormat('EEE, dd MMM yyyy HH:mm:ss').parse(message['timestamp'], true).toLocal();
@@ -125,7 +211,8 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
                 IconButton(
                   icon: const Icon(Icons.send),
-                  onPressed: _sendMessage,
+                  // onPressed: _sendMessage,
+                  onPressed: _sendMaliciousMessage,
                 ),
               ],
             ),
